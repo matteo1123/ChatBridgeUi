@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>ChatBridge</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        :root {
+            --bg-color: #1a1a2e;
+            --card-bg: #16213e;
+            --border-color: #0f3460;
+            --accent: #00d4ff;
+            --text: #eee;
+            --text-dim: #888;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-color);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 10px;
+        }
+        /* Use Telegram theme if available */
+        body.tg-theme {
+            background: var(--tg-theme-bg-color, #1a1a2e);
+            color: var(--tg-theme-text-color, #eee);
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0 15px;
+        }
+        .header h1 {
+            font-size: 1.2rem;
+            color: var(--accent);
+        }
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.8rem;
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ff4444;
+        }
+        .status-dot.connected {
+            background: #00ff88;
+        }
+        .stats {
+            display: flex;
+            gap: 15px;
+            font-size: 0.85rem;
+            color: var(--text-dim);
+        }
+        .stats span {
+            color: var(--accent);
+        }
+
+        /* Sessions */
+        .sessions {
+            margin-top: 10px;
+        }
+        .session-card {
+            background: var(--card-bg);
+            border-radius: 10px;
+            margin-bottom: 8px;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+        .session-card.expanded {
+            border-color: var(--accent);
+        }
+        .session-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 15px;
+            cursor: pointer;
+        }
+        .session-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .session-name {
+            font-weight: bold;
+        }
+        .session-type {
+            color: var(--text-dim);
+            font-size: 0.8rem;
+        }
+        .badges {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+        .badge {
+            padding: 3px 8px;
+            border-radius: 10px;
+            font-size: 0.7rem;
+            font-weight: 500;
+        }
+        .badge.running {
+            background: #0a3d2a;
+            color: #00ff88;
+        }
+        .badge.stopped {
+            background: #3d0a0a;
+            color: #ff4444;
+        }
+        .badge.active {
+            background: var(--accent);
+            color: var(--bg-color);
+        }
+
+        /* Session content */
+        .session-content {
+            display: none;
+            padding: 0 15px 15px;
+        }
+        .session-card.expanded .session-content {
+            display: block;
+        }
+        .terminal {
+            background: #0d1117;
+            border-radius: 8px;
+            padding: 12px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.85rem;
+            height: 40vh;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+            color: #c9d1d9;
+            margin-bottom: 12px;
+            border: 1px solid #30363d;
+        }
+        .command-area {
+            display: flex;
+            gap: 8px;
+        }
+        .command-input {
+            flex: 1;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            color: var(--text);
+            padding: 10px 12px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-family: monospace;
+        }
+        .command-input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        .send-btn {
+            background: var(--accent);
+            color: var(--bg-color);
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        /* Quick commands */
+        .quick-cmds {
+            display: flex;
+            gap: 5px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+        .quick-btn {
+            background: var(--border-color);
+            color: var(--text-dim);
+            border: none;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            font-family: monospace;
+        }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 50px 20px;
+            color: var(--text-dim);
+        }
+        .empty-state h2 {
+            color: var(--accent);
+            margin-bottom: 10px;
+        }
+        .create-area {
+            margin-top: 20px;
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+        }
+        .create-input {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            color: var(--text);
+            padding: 10px;
+            border-radius: 8px;
+            width: 200px;
+            font-family: monospace;
+        }
+
+        /* Connection error */
+        .error-banner {
+            background: #3d0a0a;
+            color: #ff4444;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            text-align: center;
+            font-size: 0.85rem;
+        }
+
+        /* Help panel */
+        .help-panel {
+            background: var(--card-bg);
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 15px;
+            border: 1px solid var(--border-color);
+            font-size: 0.85rem;
+        }
+        .help-panel h3 {
+            color: var(--accent);
+            margin-bottom: 10px;
+        }
+        .help-panel code {
+            background: var(--border-color);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .help-grid {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 5px 15px;
+        }
+        .help-grid code {
+            color: var(--accent);
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>ChatBridge</h1>
+        <div class="status">
+            <div class="status-dot" id="status-dot"></div>
+            <span id="status-text">Connecting...</span>
+        </div>
+    </div>
+
+    <div class="stats">
+        <div>Sessions: <span id="session-count">0</span></div>
+        <div>Running: <span id="running-count">0</span></div>
+    </div>
+
+    <div id="error-banner" class="error-banner" style="display: none;"></div>
+
+    <div class="sessions" id="sessions">
+        <div class="empty-state">
+            <h2>Connecting...</h2>
+            <p>Waiting for bot connection</p>
+        </div>
+    </div>
+
+    <div class="help-panel">
+        <h3>Commands</h3>
+        <div class="help-grid">
+            <code>/l name</code><span>Create local session</span>
+            <code>/d name container</code><span>Docker exec</span>
+            <code>/s name</code><span>Switch session</span>
+            <code>/k name</code><span>Kill session</span>
+            <code>/h</code><span>History</span>
+            <code>/m message</code><span>AI assistant</span>
+            <code>/?</code><span>Full help</span>
+        </div>
+    </div>
+
+    <script>
+        // Configuration - set your relay URL here or via query param
+        const RELAY_URL = new URLSearchParams(window.location.search).get('relay') || 'YOUR_RELAY_URL';
+
+        // Telegram WebApp
+        const tg = window.Telegram?.WebApp;
+        let initData = '';
+
+        if (tg) {
+            document.body.classList.add('tg-theme');
+            tg.ready();
+            tg.expand();
+            initData = tg.initData;
+        }
+
+        // State
+        let sessions = [];
+        let expandedSession = null;
+        let ws = null;
+        let connected = false;
+        let lastInputTime = 0;
+
+        // Track input activity
+        document.addEventListener('input', () => { lastInputTime = Date.now(); });
+        document.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT') lastInputTime = Date.now();
+        });
+
+        function isUserTyping() {
+            if (Date.now() - lastInputTime < 3000) return true;
+            return document.activeElement?.tagName === 'INPUT';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text || '';
+            return div.innerHTML;
+        }
+
+        function setStatus(connected, text) {
+            document.getElementById('status-dot').classList.toggle('connected', connected);
+            document.getElementById('status-text').textContent = text;
+        }
+
+        function showError(msg) {
+            const banner = document.getElementById('error-banner');
+            if (msg) {
+                banner.textContent = msg;
+                banner.style.display = 'block';
+            } else {
+                banner.style.display = 'none';
+            }
+        }
+
+        function connect() {
+            if (RELAY_URL === 'YOUR_RELAY_URL') {
+                showError('Relay URL not configured. Add ?relay=YOUR_URL to the page URL.');
+                setStatus(false, 'Not configured');
+                return;
+            }
+
+            const wsUrl = RELAY_URL.replace('https://', 'wss://').replace('http://', 'ws://') +
+                          '/ws?type=webapp&initData=' + encodeURIComponent(initData);
+
+            setStatus(false, 'Connecting...');
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                console.log('WebSocket connected');
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    handleMessage(data);
+                } catch (e) {
+                    console.error('Invalid message:', e);
+                }
+            };
+
+            ws.onclose = () => {
+                connected = false;
+                setStatus(false, 'Disconnected');
+                showError('Connection lost. Reconnecting...');
+                setTimeout(connect, 3000);
+            };
+
+            ws.onerror = (err) => {
+                console.error('WebSocket error:', err);
+                showError('Connection error');
+            };
+        }
+
+        function handleMessage(data) {
+            if (data.type === 'auth') {
+                if (data.success) {
+                    connected = true;
+                    setStatus(true, 'Connected');
+                    showError(null);
+                } else {
+                    setStatus(false, 'Auth failed');
+                    showError('Authentication failed. Make sure you opened this from Telegram.');
+                }
+            } else if (data.type === 'sessions') {
+                updateSessions(data.data);
+            } else if (data.type === 'response') {
+                // Response to a command - refresh will happen via sessions update
+            } else if (data.type === 'error') {
+                showError(data.message);
+            }
+        }
+
+        function updateSessions(data) {
+            document.getElementById('session-count').textContent = data.total;
+            document.getElementById('running-count').textContent = data.running;
+
+            sessions = data.sessions || [];
+
+            if (sessions.length > 0 && !expandedSession) {
+                expandedSession = data.active || sessions[0].name;
+            }
+            if (expandedSession && !sessions.find(s => s.name === expandedSession)) {
+                expandedSession = sessions.length > 0 ? sessions[0].name : null;
+            }
+
+            renderSessions();
+        }
+
+        function renderSessions() {
+            const container = document.getElementById('sessions');
+
+            // Skip render if user is typing
+            if (isUserTyping()) {
+                // Just update terminal content
+                sessions.forEach(s => {
+                    const terminal = document.getElementById('terminal-' + s.name);
+                    if (terminal) {
+                        const content = escapeHtml(s.recent_output) || '[No output]';
+                        if (terminal.innerHTML !== content) {
+                            terminal.innerHTML = content;
+                            terminal.scrollTop = terminal.scrollHeight;
+                        }
+                    }
+                });
+                return;
+            }
+
+            if (sessions.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <h2>No Sessions</h2>
+                        <p>Create a session to get started</p>
+                        <div class="create-area">
+                            <input type="text" class="create-input" id="create-input"
+                                   placeholder="/l dev" onkeypress="if(event.key==='Enter')createSession()" />
+                            <button class="send-btn" onclick="createSession()">Create</button>
+                        </div>
+                    </div>`;
+                return;
+            }
+
+            container.innerHTML = sessions.map(s => `
+                <div class="session-card ${expandedSession === s.name ? 'expanded' : ''}" data-name="${escapeHtml(s.name)}">
+                    <div class="session-header" onclick="toggleSession('${escapeHtml(s.name)}')">
+                        <div class="session-info">
+                            <div class="session-name">${escapeHtml(s.name)}</div>
+                            <div class="session-type">${escapeHtml(s.type)}</div>
+                        </div>
+                        <div class="badges">
+                            ${s.is_active ? '<span class="badge active">ACTIVE</span>' : ''}
+                            <span class="badge ${s.status}">${s.status}</span>
+                        </div>
+                    </div>
+                    <div class="session-content">
+                        <div class="terminal" id="terminal-${escapeHtml(s.name)}">${escapeHtml(s.recent_output) || '[No output]'}</div>
+                        <div class="command-area">
+                            <input type="text" class="command-input" id="input-${escapeHtml(s.name)}"
+                                   placeholder="Enter command..."
+                                   onkeypress="if(event.key==='Enter')sendCommand('${escapeHtml(s.name)}')" />
+                            <button class="send-btn" onclick="sendCommand('${escapeHtml(s.name)}')">Send</button>
+                        </div>
+                        <div class="quick-cmds">
+                            <button class="quick-btn" onclick="quickCmd('${escapeHtml(s.name)}','ls')">ls</button>
+                            <button class="quick-btn" onclick="quickCmd('${escapeHtml(s.name)}','pwd')">pwd</button>
+                            <button class="quick-btn" onclick="quickCmd('${escapeHtml(s.name)}','cd ..')">cd ..</button>
+                            <button class="quick-btn" onclick="quickCmd('${escapeHtml(s.name)}','/h')">/h</button>
+                            <button class="quick-btn" onclick="quickCmd('${escapeHtml(s.name)}','/k ${escapeHtml(s.name)}')">/k</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            // Scroll terminal
+            if (expandedSession) {
+                const terminal = document.getElementById('terminal-' + expandedSession);
+                if (terminal) terminal.scrollTop = terminal.scrollHeight;
+            }
+        }
+
+        function toggleSession(name) {
+            expandedSession = expandedSession === name ? null : name;
+            if (expandedSession) {
+                sendWs({ type: 'command', command: '/s ' + name });
+            }
+            renderSessions();
+            if (expandedSession) {
+                setTimeout(() => {
+                    const input = document.getElementById('input-' + expandedSession);
+                    if (input) input.focus();
+                }, 50);
+            }
+        }
+
+        function sendWs(data) {
+            if (ws && connected) {
+                ws.send(JSON.stringify(data));
+            }
+        }
+
+        function sendCommand(sessionName) {
+            const input = document.getElementById('input-' + sessionName);
+            const command = input.value.trim();
+            if (!command) return;
+
+            sendWs({ type: 'command', command, session: sessionName });
+            input.value = '';
+        }
+
+        function quickCmd(sessionName, cmd) {
+            sendWs({ type: 'command', command: cmd, session: sessionName });
+        }
+
+        function createSession() {
+            const input = document.getElementById('create-input');
+            const command = input.value.trim();
+            if (!command) return;
+
+            sendWs({ type: 'command', command });
+            input.value = '';
+        }
+
+        // Start connection
+        connect();
+    </script>
+</body>
+</html>
