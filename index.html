@@ -388,6 +388,7 @@
         }
 
         function handleMessage(data) {
+            console.log('Received:', data.type, data);
             if (data.type === 'auth') {
                 if (data.success) {
                     connected = true;
@@ -407,10 +408,11 @@
         }
 
         function updateSessions(data) {
-            document.getElementById('session-count').textContent = data.total;
-            document.getElementById('running-count').textContent = data.running;
+            console.log('updateSessions:', data);
+            document.getElementById('session-count').textContent = data?.total ?? 0;
+            document.getElementById('running-count').textContent = data?.running ?? 0;
 
-            sessions = data.sessions || [];
+            sessions = data?.sessions || [];
 
             if (sessions.length > 0 && !expandedSession) {
                 expandedSession = data.active || sessions[0].name;
@@ -424,6 +426,7 @@
 
         function renderSessions() {
             const container = document.getElementById('sessions');
+            console.log('renderSessions:', sessions.length, 'sessions, expanded:', expandedSession);
 
             // Skip render if user is typing
             if (isUserTyping()) {
