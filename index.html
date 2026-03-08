@@ -271,6 +271,7 @@
         <div>Sessions: <span id="session-count">0</span></div>
         <div>Running: <span id="running-count">0</span></div>
     </div>
+    <div id="debug" style="font-size: 10px; color: #666; padding: 5px;"></div>
 
     <div id="error-banner" class="error-banner" style="display: none;"></div>
 
@@ -389,6 +390,11 @@
 
         function handleMessage(data) {
             console.log('Received:', data.type, data);
+            // Debug: show all messages in UI temporarily
+            const debugDiv = document.getElementById('debug');
+            if (debugDiv) {
+                debugDiv.textContent = JSON.stringify(data).slice(0, 200);
+            }
             if (data.type === 'auth') {
                 if (data.success) {
                     connected = true;
@@ -424,12 +430,15 @@
             renderSessions();
         }
 
+        let previousSessionCount = 0;
+        
         function renderSessions() {
             const container = document.getElementById('sessions');
             console.log('renderSessions:', sessions.length, 'sessions, expanded:', expandedSession);
 
-            // Skip render if user is typing
-            if (isUserTyping()) {
+            // Skip render if user is typing, UNLESS we're transitioning from 0 to >0 sessions
+            const transitioningFromEmpty = previousSessionCount === 0 && sessions.length > 0;
+            if (isUserTyping() && !transitioningFromEmpty) {
                 // Just update terminal content
                 sessions.forEach(s => {
                     const terminal = document.getElementById('terminal-' + s.name);
@@ -443,6 +452,8 @@
                 });
                 return;
             }
+            
+            previousSessionCount = sessions.length;
 
             if (sessions.length === 0) {
                 container.innerHTML = `
